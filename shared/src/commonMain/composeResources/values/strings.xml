@@ -1,0 +1,29 @@
+<resources>
+    <string name="todo_list_title">My to-dos</string>
+    <string name="todo_list_empty_title">Nothing to do yet</string>
+    <string name="todo_list_empty_description">Tap the + button to add your first to-do.</string>
+    <string name="todo_list_open_count">%1$d open · %2$d done</string>
+    <string name="todo_added_at">Added %1$s</string>
+    <string name="todo_updated_at">Updated %1$s</string>
+
+    <string name="todo_detail_new_title">New to-do</string>
+    <string name="todo_detail_edit_title">Edit to-do</string>
+    <string name="todo_detail_title_label">Title</string>
+    <string name="todo_detail_description_label">Description</string>
+    <string name="todo_detail_done_label">Done</string>
+    <string name="todo_detail_save">Save</string>
+
+    <string name="chat_title">Assistant</string>
+    <string name="chat_subtitle">Runs fully on your device</string>
+    <string name="chat_empty_title">How can I help?</string>
+    <string name="chat_empty_description">Ask me to add, update or complete your to-dos.</string>
+    <string name="chat_input_placeholder">Ask anything about your to-dos…</string>
+
+    <string name="cd_add_todo">Add to-do</string>
+    <string name="cd_open_chat">Open assistant</string>
+    <string name="cd_navigate_back">Navigate back</string>
+    <string name="cd_delete_todo">Delete to-do</string>
+    <string name="cd_send_message">Send message</string>
+    <string name="cd_mark_done">Mark as done</string>
+    <string name="cd_mark_not_done">Mark as not done</string>
+</resources>
