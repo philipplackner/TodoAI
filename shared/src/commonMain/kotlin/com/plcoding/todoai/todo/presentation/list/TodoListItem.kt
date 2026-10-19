@@ -25,12 +25,16 @@ import todoai.shared.generated.resources.Res
 import todoai.shared.generated.resources.cd_mark_done
 import todoai.shared.generated.resources.cd_mark_not_done
 import todoai.shared.generated.resources.todo_added_at
+import todoai.shared.generated.resources.todo_due_at
+import todoai.shared.generated.resources.todo_overdue_at
 
 @Composable
 internal fun TodoListItem(
     title: String,
     description: String,
     formattedCreatedAt: String,
+    formattedDueDate: String?,
+    isOverdue: Boolean,
     isDone: Boolean,
     onClick: () -> Unit,
     onDoneToggle: (Boolean) -> Unit,
@@ -87,6 +91,20 @@ internal fun TodoListItem(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
+                if (formattedDueDate != null) {
+                    Text(
+                        text = stringResource(
+                            if (isOverdue) Res.string.todo_overdue_at else Res.string.todo_due_at,
+                            formattedDueDate
+                        ),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (isOverdue) {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.primary
+                        }
+                    )
+                }
                 Text(
                     text = stringResource(Res.string.todo_added_at, formattedCreatedAt),
                     style = MaterialTheme.typography.labelSmall,
@@ -105,6 +123,25 @@ private fun TodoListItemOpenPreview() {
             title = "Buy groceries",
             description = "Milk, eggs, bread and some fruit for the week",
             formattedCreatedAt = "Oct 19, 2026, 09:30",
+            formattedDueDate = "Oct 21, 2026",
+            isOverdue = false,
+            isDone = false,
+            onClick = {},
+            onDoneToggle = {}
+        )
+    }
+}
+
+@Preview(name = "Overdue")
+@Composable
+private fun TodoListItemOverduePreview() {
+    AppTheme {
+        TodoListItem(
+            title = "Pay rent",
+            description = "",
+            formattedCreatedAt = "Oct 10, 2026, 08:00",
+            formattedDueDate = "Oct 15, 2026",
+            isOverdue = true,
             isDone = false,
             onClick = {},
             onDoneToggle = {}
@@ -120,6 +157,8 @@ private fun TodoListItemDonePreview() {
             title = "Book dentist appointment",
             description = "",
             formattedCreatedAt = "Oct 18, 2026, 17:05",
+            formattedDueDate = null,
+            isOverdue = false,
             isDone = true,
             onClick = {},
             onDoneToggle = {}
@@ -135,6 +174,8 @@ private fun TodoListItemLongTextPreview() {
             title = "Prepare the slides and the demo project for the on-device AI agents video",
             description = "Cover tool calling, the agent loop, and how the model reads and updates the to-do list without any network access",
             formattedCreatedAt = "Oct 17, 2026, 11:12",
+            formattedDueDate = "Oct 24, 2026",
+            isOverdue = false,
             isDone = false,
             onClick = {},
             onDoneToggle = {}
@@ -150,6 +191,8 @@ private fun TodoListItemDarkPreview() {
             title = "Buy groceries",
             description = "Milk, eggs, bread and some fruit for the week",
             formattedCreatedAt = "Oct 19, 2026, 09:30",
+            formattedDueDate = "Oct 15, 2026",
+            isOverdue = true,
             isDone = false,
             onClick = {},
             onDoneToggle = {}

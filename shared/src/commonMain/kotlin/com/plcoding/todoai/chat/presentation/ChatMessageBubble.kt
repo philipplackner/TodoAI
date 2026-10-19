@@ -16,15 +16,20 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.plcoding.todoai.core.designsystem.AppIcons
 import com.plcoding.todoai.core.designsystem.AppTheme
 
 @Composable
@@ -42,6 +47,64 @@ internal fun ChatMessageBubble(
             style = MaterialTheme.typography.bodyLarge,
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
         )
+    }
+}
+
+@Composable
+internal fun ChatErrorBubble(
+    text: String,
+    modifier: Modifier = Modifier
+) {
+    Row(modifier = modifier.fillMaxWidth()) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.errorContainer,
+            contentColor = MaterialTheme.colorScheme.onErrorContainer,
+            modifier = Modifier.widthIn(max = 300.dp)
+        ) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+            )
+        }
+    }
+}
+
+/**
+ * Shows which tool the agent called, so it's visible how the answer came about.
+ */
+@Composable
+internal fun ToolCallChip(
+    toolName: String,
+    arguments: String,
+    modifier: Modifier = Modifier
+) {
+    Row(modifier = modifier.fillMaxWidth()) {
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Icon(
+                    painter = AppIcons.Build,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp)
+                )
+                Text(
+                    text = if (arguments.isBlank()) toolName else "$toolName · $arguments",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontFamily = FontFamily.Monospace,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
     }
 }
 
@@ -142,6 +205,25 @@ private fun ChatMessageBubbleLongPreview() {
             text = "Please mark everything related to the video as done, and then add a new to-do for editing with a short description of the cuts I still need to make.",
             isFromUser = true
         )
+    }
+}
+
+@Preview(name = "Tool call")
+@Composable
+private fun ToolCallChipPreview() {
+    AppTheme {
+        ToolCallChip(
+            toolName = "get_todos",
+            arguments = "next_week"
+        )
+    }
+}
+
+@Preview(name = "Error")
+@Composable
+private fun ChatErrorBubblePreview() {
+    AppTheme {
+        ChatErrorBubble(text = "Something went wrong while generating an answer. Please try again.")
     }
 }
 

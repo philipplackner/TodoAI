@@ -9,6 +9,7 @@ data class TodoEntity(
     val title: String,
     val description: String,
     val isDone: Boolean,
+    val dueDateEpochDays: Long? = null,
     val createdAtMillis: Long,
     val updatedAtMillis: Long
 )

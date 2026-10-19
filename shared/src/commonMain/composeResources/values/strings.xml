@@ -5,6 +5,8 @@
     <string name="todo_list_open_count">%1$d open · %2$d done</string>
     <string name="todo_added_at">Added %1$s</string>
     <string name="todo_updated_at">Updated %1$s</string>
+    <string name="todo_due_at">Due %1$s</string>
+    <string name="todo_overdue_at">Overdue · %1$s</string>
 
     <string name="todo_detail_new_title">New to-do</string>
     <string name="todo_detail_edit_title">Edit to-do</string>
@@ -12,12 +14,28 @@
     <string name="todo_detail_description_label">Description</string>
     <string name="todo_detail_done_label">Done</string>
     <string name="todo_detail_save">Save</string>
+    <string name="todo_detail_due_date_label">Due date</string>
+    <string name="todo_detail_no_due_date">No due date</string>
+    <string name="date_picker_confirm">OK</string>
+    <string name="date_picker_cancel">Cancel</string>
 
     <string name="chat_title">Assistant</string>
     <string name="chat_subtitle">Runs fully on your device</string>
     <string name="chat_empty_title">How can I help?</string>
     <string name="chat_empty_description">Ask me to add, update or complete your to-dos.</string>
     <string name="chat_input_placeholder">Ask anything about your to-dos…</string>
+    <string name="chat_error_generic">Something went wrong while generating an answer. Please try again.</string>
+    <string name="chat_error_empty_answer">I couldn\'t come up with an answer. Try rephrasing your request.</string>
+
+    <string name="model_setup_title">Download the on-device model</string>
+    <string name="model_setup_description">The assistant runs %1$s fully on your device. This is a one-time download of %2$s, so a Wi-Fi connection is best.</string>
+    <string name="model_setup_download">Download (%1$s)</string>
+    <string name="model_setup_downloading">Downloading %1$s</string>
+    <string name="model_setup_progress">%1$s of %2$s</string>
+    <string name="model_setup_loading">Loading the model…</string>
+    <string name="model_setup_download_failed">The download failed. Check your connection and try again. It continues where it stopped.</string>
+    <string name="model_setup_load_failed">The model couldn\'t be loaded on this device.</string>
+    <string name="model_setup_retry">Try again</string>
 
     <string name="cd_add_todo">Add to-do</string>
     <string name="cd_open_chat">Open assistant</string>
@@ -26,4 +44,6 @@
     <string name="cd_send_message">Send message</string>
     <string name="cd_mark_done">Mark as done</string>
     <string name="cd_mark_not_done">Mark as not done</string>
+    <string name="cd_clear_due_date">Clear due date</string>
+    <string name="cd_new_chat">Start a new chat</string>
 </resources>

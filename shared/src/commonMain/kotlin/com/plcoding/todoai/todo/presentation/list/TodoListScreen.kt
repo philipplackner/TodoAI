@@ -151,6 +151,8 @@ fun TodoListScreen(
                             title = todo.title,
                             description = todo.description,
                             formattedCreatedAt = todo.formattedCreatedAt,
+                            formattedDueDate = todo.formattedDueDate,
+                            isOverdue = todo.isOverdue,
                             isDone = todo.isDone,
                             onClick = { onTodoClick(todo.id) },
                             onDoneToggle = { isDone ->
@@ -195,14 +197,17 @@ private val previewTodos = listOf(
         title = "Buy groceries",
         description = "Milk, eggs, bread and some fruit for the week",
         isDone = false,
-        formattedCreatedAt = "Oct 19, 2026, 09:30"
+        formattedCreatedAt = "Oct 19, 2026, 09:30",
+        formattedDueDate = "Oct 21, 2026"
     ),
     TodoUi(
         id = "2",
         title = "Record the on-device AI agent video",
         description = "Show how the agent adds and completes to-dos",
         isDone = false,
-        formattedCreatedAt = "Oct 18, 2026, 14:00"
+        formattedCreatedAt = "Oct 18, 2026, 14:00",
+        formattedDueDate = "Oct 15, 2026",
+        isOverdue = true
     ),
     TodoUi(
         id = "3",

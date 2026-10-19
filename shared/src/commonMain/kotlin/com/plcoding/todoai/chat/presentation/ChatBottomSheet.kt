@@ -1,6 +1,7 @@
 package com.plcoding.todoai.chat.presentation
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -11,12 +12,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -34,11 +37,15 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.plcoding.todoai.core.designsystem.AppIcons
+import com.plcoding.todoai.agent.domain.ModelState
 import com.plcoding.todoai.core.designsystem.AppTheme
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import todoai.shared.generated.resources.Res
+import todoai.shared.generated.resources.cd_new_chat
 import todoai.shared.generated.resources.cd_send_message
+import todoai.shared.generated.resources.chat_error_empty_answer
+import todoai.shared.generated.resources.chat_error_generic
 import todoai.shared.generated.resources.chat_empty_description
 import todoai.shared.generated.resources.chat_empty_title
 import todoai.shared.generated.resources.chat_input_placeholder
@@ -75,46 +82,51 @@ fun ChatSheetContent(
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
-        ChatHeader(modifier = Modifier.padding(horizontal = 24.dp))
+        ChatHeader(
+            showNewChatButton = state.messages.isNotEmpty(),
+            onNewChatClick = { onAction(ChatAction.OnNewChatClick) },
+            modifier = Modifier.padding(start = 24.dp, end = 12.dp)
+        )
         HorizontalDivider(modifier = Modifier.padding(top = 16.dp))
 
-        if (state.messages.isEmpty() && !state.isGenerating) {
-            ChatEmptyState(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-            )
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                reverseLayout = true,
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.Bottom)
-            ) {
-                if (state.isGenerating) {
-                    item(key = "typing_indicator") {
-                        TypingIndicatorBubble(modifier = Modifier.animateItem())
-                    }
-                }
-                items(
-                    items = state.messages.asReversed(),
-                    key = { it.id }
-                ) { message ->
-                    ChatMessageBubble(
-                        text = message.text,
-                        isFromUser = message.isFromUser,
-                        modifier = Modifier.animateItem()
+        when {
+            !state.isModelReady -> {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    ModelSetupCard(
+                        modelState = state.modelState,
+                        onDownloadClick = { onAction(ChatAction.OnDownloadModelClick) },
+                        onRetryLoadClick = { onAction(ChatAction.OnRetryLoadModelClick) }
                     )
                 }
+            }
+            state.messages.isEmpty() && !state.isGenerating -> {
+                ChatEmptyState(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                )
+            }
+            else -> {
+                ChatMessageList(
+                    messages = state.messages,
+                    isGenerating = state.isGenerating,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                )
             }
         }
 
         ChatInputBar(
-            input = state.input,
+            inputState = state.input,
+            isEnabled = state.isModelReady,
             canSend = state.canSend,
-            onInputChange = { onAction(ChatAction.OnInputChange(it)) },
             onSendClick = { onAction(ChatAction.OnSendClick) },
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
         )
@@ -122,7 +134,61 @@ fun ChatSheetContent(
 }
 
 @Composable
+private fun ChatMessageList(
+    messages: List<ChatMessageUi>,
+    isGenerating: Boolean,
+    modifier: Modifier = Modifier
+) {
+    LazyColumn(
+        modifier = modifier,
+        reverseLayout = true,
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.Bottom)
+    ) {
+        if (isGenerating) {
+            item(key = "typing_indicator") {
+                TypingIndicatorBubble(modifier = Modifier.animateItem())
+            }
+        }
+        items(
+            items = messages.asReversed(),
+            key = { it.id }
+        ) { message ->
+            val itemModifier = Modifier.animateItem()
+            when (message) {
+                is ChatMessageUi.User -> ChatMessageBubble(
+                    text = message.text,
+                    isFromUser = true,
+                    modifier = itemModifier
+                )
+                is ChatMessageUi.Assistant -> ChatMessageBubble(
+                    text = message.text,
+                    isFromUser = false,
+                    modifier = itemModifier
+                )
+                is ChatMessageUi.ToolCall -> ToolCallChip(
+                    toolName = message.toolName,
+                    arguments = message.arguments,
+                    modifier = itemModifier
+                )
+                is ChatMessageUi.Error -> ChatErrorBubble(
+                    text = stringResource(
+                        when (message.type) {
+                            ChatError.GENERATION_FAILED -> Res.string.chat_error_generic
+                            ChatError.EMPTY_ANSWER -> Res.string.chat_error_empty_answer
+                        }
+                    ),
+                    modifier = itemModifier
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun ChatHeader(
+    showNewChatButton: Boolean,
+    onNewChatClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -135,7 +201,7 @@ private fun ChatHeader(
             contentDescription = null,
             tint = MaterialTheme.colorScheme.primary
         )
-        Column {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = stringResource(Res.string.chat_title),
                 style = MaterialTheme.typography.titleLarge
@@ -145,6 +211,14 @@ private fun ChatHeader(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+        if (showNewChatButton) {
+            IconButton(onClick = onNewChatClick) {
+                Icon(
+                    painter = AppIcons.Refresh,
+                    contentDescription = stringResource(Res.string.cd_new_chat)
+                )
+            }
         }
     }
 }
@@ -174,9 +248,9 @@ private fun ChatEmptyState(
 
 @Composable
 private fun ChatInputBar(
-    input: String,
+    inputState: TextFieldState,
+    isEnabled: Boolean,
     canSend: Boolean,
-    onInputChange: (String) -> Unit,
     onSendClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -186,16 +260,16 @@ private fun ChatInputBar(
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         OutlinedTextField(
-            value = input,
-            onValueChange = onInputChange,
+            state = inputState,
+            enabled = isEnabled,
             placeholder = { Text(text = stringResource(Res.string.chat_input_placeholder)) },
             shape = RoundedCornerShape(24.dp),
-            maxLines = 4,
+            lineLimits = TextFieldLineLimits.MultiLine(maxHeightInLines = 4),
             keyboardOptions = KeyboardOptions(
                 capitalization = KeyboardCapitalization.Sentences,
                 imeAction = ImeAction.Send
             ),
-            keyboardActions = KeyboardActions(onSend = { onSendClick() }),
+            onKeyboardAction = { onSendClick() },
             modifier = Modifier.weight(1f)
         )
         FilledIconButton(
@@ -211,13 +285,14 @@ private fun ChatInputBar(
 }
 
 private val previewMessages = listOf(
-    ChatMessageUi(id = "1", text = "What's still open on my list?", isFromUser = true),
-    ChatMessageUi(
-        id = "2",
-        text = "You have 2 open to-dos: \"Buy groceries\" and \"Record the on-device AI agent video\".",
-        isFromUser = false
+    ChatMessageUi.User(id = "1", text = "What's due next week?"),
+    ChatMessageUi.ToolCall(id = "2", toolName = "get_todos", arguments = "next_week"),
+    ChatMessageUi.Assistant(
+        id = "3",
+        text = "You have 2 to-dos due next week:\n• Buy groceries (Oct 27)\n• Record the on-device AI agent video (Oct 30)"
     ),
-    ChatMessageUi(id = "3", text = "Mark the groceries one as done", isFromUser = true)
+    ChatMessageUi.User(id = "4", text = "Mark the groceries one as done"),
+    ChatMessageUi.Error(id = "5", type = ChatError.GENERATION_FAILED)
 )
 
 @Preview(name = "Conversation")
@@ -225,7 +300,7 @@ private val previewMessages = listOf(
 private fun ChatSheetContentPreview() {
     AppTheme {
         ChatSheetContent(
-            state = ChatState(messages = previewMessages, input = "Thanks!"),
+            state = ChatState(messages = previewMessages, input = TextFieldState("Thanks!")),
             onAction = {},
             modifier = Modifier.fillMaxSize()
         )
@@ -250,6 +325,18 @@ private fun ChatSheetContentEmptyPreview() {
     AppTheme {
         ChatSheetContent(
             state = ChatState(),
+            onAction = {},
+            modifier = Modifier.fillMaxSize()
+        )
+    }
+}
+
+@Preview(name = "Model not downloaded")
+@Composable
+private fun ChatSheetContentNotDownloadedPreview() {
+    AppTheme {
+        ChatSheetContent(
+            state = ChatState(modelState = ModelState.NotDownloaded),
             onAction = {},
             modifier = Modifier.fillMaxSize()
         )

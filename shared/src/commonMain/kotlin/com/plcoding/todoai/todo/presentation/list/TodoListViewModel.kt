@@ -9,6 +9,9 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.todayIn
+import kotlin.time.Clock
 
 class TodoListViewModel(
     private val todoDataSource: TodoLocalDataSource
@@ -21,7 +24,7 @@ class TodoListViewModel(
         isChatOpen
     ) { todos, isChatOpen ->
         TodoListState(
-            todos = todos.map { it.toTodoUi() },
+            todos = todos.map { it.toTodoUi(today = Clock.System.todayIn(TimeZone.currentSystemDefault())) },
             isLoading = false,
             isChatOpen = isChatOpen
         )

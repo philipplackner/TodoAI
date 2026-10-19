@@ -6,7 +6,27 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		7A1E0C0F2D3B4A5C6D7E8F03 /* CLiteRTLM.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7A1E0C0F2D3B4A5C6D7E8F01 /* CLiteRTLM.xcframework */; };
+		7A1E0C0F2D3B4A5C6D7E8F04 /* CLiteRTLM.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 7A1E0C0F2D3B4A5C6D7E8F01 /* CLiteRTLM.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		7A1E0C0F2D3B4A5C6D7E8F05 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				7A1E0C0F2D3B4A5C6D7E8F04 /* CLiteRTLM.xcframework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		7A1E0C0F2D3B4A5C6D7E8F01 /* CLiteRTLM.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = CLiteRTLM.xcframework; sourceTree = "<group>"; };
 		564E4A6E8C522E0194213390 /* TodoAI.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TodoAI.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -41,6 +61,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				7A1E0C0F2D3B4A5C6D7E8F03 /* CLiteRTLM.xcframework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -52,8 +73,17 @@
 			children = (
 				8E391EB0E673282A9923B9C6 /* Configuration */,
 				CB38FE955FC73D4071E70248 /* iosApp */,
+				7A1E0C0F2D3B4A5C6D7E8F02 /* Frameworks */,
 				327E7E5E193DA265B492B866 /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		7A1E0C0F2D3B4A5C6D7E8F02 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				7A1E0C0F2D3B4A5C6D7E8F01 /* CLiteRTLM.xcframework */,
+			);
+			path = Frameworks;
 			sourceTree = "<group>";
 		};
 		327E7E5E193DA265B492B866 /* Products */ = {
@@ -75,6 +105,7 @@
 				4E0F07A0EA0A91C101782ED0 /* Sources */,
 				53065E5E944433330EB0DFF8 /* Frameworks */,
 				5D2986F826C88737A89C83CF /* Resources */,
+				7A1E0C0F2D3B4A5C6D7E8F05 /* Embed Frameworks */,
 			);
 			buildRules = (
 			);

@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.datetime.LocalDate
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
@@ -30,6 +31,7 @@ class TodoDetailViewModel(
             title = savedStateHandle[KEY_TITLE] ?: "",
             description = savedStateHandle[KEY_DESCRIPTION] ?: "",
             isDone = savedStateHandle[KEY_IS_DONE] ?: false,
+            dueDate = savedStateHandle.get<Long>(KEY_DUE_DATE)?.let { LocalDate.fromEpochDays(it) },
             isNewTodo = todoId == null,
             isLoading = todoId != null
         )
@@ -59,6 +61,16 @@ class TodoDetailViewModel(
                 savedStateHandle[KEY_IS_DONE] = action.isDone
                 _state.update { it.copy(isDone = action.isDone) }
             }
+            TodoDetailAction.OnDueDateClick -> {
+                _state.update { it.copy(isDatePickerOpen = true) }
+            }
+            TodoDetailAction.OnDueDatePickerDismiss -> {
+                _state.update { it.copy(isDatePickerOpen = false) }
+            }
+            is TodoDetailAction.OnDueDateChange -> {
+                savedStateHandle[KEY_DUE_DATE] = action.dueDate?.toEpochDays()
+                _state.update { it.copy(dueDate = action.dueDate, isDatePickerOpen = false) }
+            }
             TodoDetailAction.OnSaveClick -> saveTodo()
             TodoDetailAction.OnDeleteClick -> deleteTodo()
         }
@@ -77,6 +89,7 @@ class TodoDetailViewModel(
                     title = savedStateHandle[KEY_TITLE] ?: todo.title,
                     description = savedStateHandle[KEY_DESCRIPTION] ?: todo.description,
                     isDone = savedStateHandle[KEY_IS_DONE] ?: todo.isDone,
+                    dueDate = if (savedStateHandle.contains(KEY_DUE_DATE)) it.dueDate else todo.dueDate,
                     formattedCreatedAt = todo.createdAt.toFormattedDateTime(),
                     formattedUpdatedAt = todo.updatedAt.toFormattedDateTime(),
                     isLoading = false
@@ -96,12 +109,14 @@ class TodoDetailViewModel(
                 title = currentState.title.trim(),
                 description = currentState.description.trim(),
                 isDone = currentState.isDone,
+                dueDate = currentState.dueDate,
                 updatedAt = now
             ) ?: Todo(
                 id = Uuid.random().toString(),
                 title = currentState.title.trim(),
                 description = currentState.description.trim(),
                 isDone = currentState.isDone,
+                dueDate = currentState.dueDate,
                 createdAt = now,
                 updatedAt = now
             )
@@ -122,5 +137,6 @@ class TodoDetailViewModel(
         const val KEY_TITLE = "title"
         const val KEY_DESCRIPTION = "description"
         const val KEY_IS_DONE = "isDone"
+        const val KEY_DUE_DATE = "dueDate"
     }
 }

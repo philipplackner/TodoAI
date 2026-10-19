@@ -9,6 +9,7 @@ fun initKoin(config: KoinAppDeclaration? = null) {
         modules(
             todoDataModule,
             todoPresentationModule,
+            agentModule,
             chatPresentationModule
         )
     }
