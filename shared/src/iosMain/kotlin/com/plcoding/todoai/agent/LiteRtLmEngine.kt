@@ -1,9 +1,7 @@
 package com.plcoding.todoai.agent
 
-import com.plcoding.todoai.agent.data.toFunctionDeclaration
 import com.plcoding.todoai.agent.data.toJsonObject
 import com.plcoding.todoai.agent.data.toPlainMap
-import com.plcoding.todoai.agent.domain.AgentTool
 import com.plcoding.todoai.agent.domain.LlmConversation
 import com.plcoding.todoai.agent.domain.LlmEngine
 import com.plcoding.todoai.agent.domain.LlmMessage
@@ -75,7 +73,7 @@ class LiteRtLmEngine : LlmEngine {
 
     override suspend fun createConversation(
         systemPrompt: String,
-        tools: List<AgentTool>
+        tools: List<JsonObject>
     ): LlmConversation = withContext(Dispatchers.Default) {
         val engine = checkNotNull(engine) { "The model is not loaded" }
         val sessionConfig = litert_lm_session_config_create()
@@ -92,7 +90,7 @@ class LiteRtLmEngine : LlmEngine {
                     tools.forEach { tool ->
                         addJsonObject {
                             put("type", "function")
-                            put("function", tool.toFunctionDeclaration())
+                            put("function", tool)
                         }
                     }
                 }.toString()

@@ -1,20 +1,23 @@
 package com.plcoding.todoai.agent
 
+import ai.koog.agents.core.tools.SimpleTool
+import ai.koog.serialization.typeToken
+import com.plcoding.todoai.agent.data.LiteRtLmClient
 import com.plcoding.todoai.agent.domain.AgentEvent
-import com.plcoding.todoai.agent.domain.AgentTool
 import com.plcoding.todoai.agent.domain.LlmMessage
 import com.plcoding.todoai.agent.domain.LlmResponse
 import com.plcoding.todoai.agent.domain.ToolArguments
 import com.plcoding.todoai.agent.domain.ToolCall
-import com.plcoding.todoai.agent.domain.ToolParameter
 import com.plcoding.todoai.agent.domain.ToolResult
 import com.plcoding.todoai.agent.domain.TodoAgent
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.TimeZone
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
+import kotlin.test.assertFails
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import kotlin.time.Clock
@@ -22,18 +25,22 @@ import kotlin.time.Instant
 
 class TodoAgentTest {
 
-    private val echoTool = object : AgentTool {
-        override val name = "echo"
-        override val description = "Echoes its input"
-        override val parameters = listOf(ToolParameter("text", ToolParameter.Type.STRING, "Text to echo"))
-        override suspend fun execute(arguments: ToolArguments): Map<String, Any?> = arguments.values
+    @Serializable
+    data class EchoArgs(
+        val text: String,
+        @SerialName("shout") val shout: Boolean = false
+    )
+
+    private val echoTool = object : SimpleTool<EchoArgs>(typeToken<EchoArgs>(), "echo", "Echoes its input") {
+        override suspend fun execute(args: EchoArgs): String =
+            """{"text":"${if (args.shout) args.text.uppercase() else args.text}"}"""
     }
 
-    private val failingTool = object : AgentTool {
-        override val name = "fail"
-        override val description = "Always fails"
-        override val parameters = emptyList<ToolParameter>()
-        override suspend fun execute(arguments: ToolArguments): Map<String, Any?> = error("Database is locked")
+    @Serializable
+    class NoArgs
+
+    private val failingTool = object : SimpleTool<NoArgs>(typeToken<NoArgs>(), "fail", "Always fails") {
+        override suspend fun execute(args: NoArgs): String = error("Database is locked")
     }
 
     private class MutableClock(var instant: Instant) : Clock {
@@ -43,13 +50,13 @@ class TodoAgentTest {
     private val clock = MutableClock(Instant.parse("2026-10-19T10:00:00Z"))
 
     private fun agent(engine: FakeLlmEngine) = TodoAgent(
-        engine = engine,
+        client = LiteRtLmClient(engine),
         tools = listOf(echoTool, failingTool),
         clock = clock,
         timeZone = { TimeZone.UTC }
     )
 
-    private fun toolCall(name: String, vararg arguments: Pair<String, String>) = LlmResponse(
+    private fun toolCall(name: String, vararg arguments: Pair<String, Any>) = LlmResponse(
         text = "",
         toolCalls = listOf(ToolCall(name, ToolArguments(arguments.toMap())))
     )
@@ -99,7 +106,7 @@ class TodoAgentTest {
         agent(engine).send("Delete all").toList()
 
         val error = engine.sentToolResult().result["error"].toString()
-        assertTrue("delete_everything" in error && "echo" in error, error)
+        assertTrue("delete_everything" in error, error)
     }
 
     @Test
@@ -114,7 +121,8 @@ class TodoAgentTest {
         val events = agent(engine).send("Do it").toList()
 
         assertEquals(AgentEvent.Answer("It failed"), events.last())
-        assertEquals("Database is locked", engine.sentToolResult().result["error"])
+        val error = engine.sentToolResult().result["error"].toString()
+        assertTrue("Database is locked" in error, error)
     }
 
     @Test
@@ -162,12 +170,60 @@ class TodoAgentTest {
         }
         val agent = agent(engine)
 
-        assertFailsWith<IllegalStateException> { agent.send("One").toList() }
+        assertFails { agent.send("One").toList() }
         shouldFail = false
         val events = agent.send("Two").toList()
 
         assertEquals(AgentEvent.Answer("ok"), events.single())
         assertEquals(1, engine.closedConversations)
         assertEquals(2, engine.systemPrompts.size)
+    }
+
+    @Test
+    fun smallModelArgumentQuirksAreTolerated() = runTest {
+        val engine = FakeLlmEngine { message ->
+            when (message) {
+                // A boolean sent as a string, plus an argument the tool doesn't have.
+                is LlmMessage.User -> toolCall("echo", "text" to "hi", "shout" to "true", "mood" to "happy")
+                is LlmMessage.ToolResults -> answer("done")
+            }
+        }
+
+        agent(engine).send("Shout hi").toList()
+
+        assertEquals(mapOf("text" to "HI"), engine.sentToolResult().result)
+    }
+
+    @Test
+    fun followUpOnlySendsTheNewMessage() = runTest {
+        val engine = FakeLlmEngine { answer("ok") }
+        val agent = agent(engine)
+
+        agent.send("One").toList()
+        agent.send("Two").toList()
+
+        assertEquals(listOf<LlmMessage>(LlmMessage.User("One"), LlmMessage.User("Two")), engine.sentMessages)
+    }
+
+    @Test
+    fun toolsAreDeclaredToTheModel() = runTest {
+        val engine = FakeLlmEngine { answer("ok") }
+
+        agent(engine).send("Hi").toList()
+
+        assertEquals(listOf("echo", "fail"), engine.toolDeclarations.single().map { it.getValue("name").toString().trim('"') })
+    }
+
+    @Test
+    fun resetStartsANewConversation() = runTest {
+        val engine = FakeLlmEngine { answer("ok") }
+        val agent = agent(engine)
+
+        agent.send("One").toList()
+        agent.reset()
+        agent.send("Two").toList()
+
+        assertEquals(2, engine.systemPrompts.size)
+        assertEquals(1, engine.closedConversations)
     }
 }

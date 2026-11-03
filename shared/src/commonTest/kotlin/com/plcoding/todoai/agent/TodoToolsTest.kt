@@ -1,7 +1,6 @@
 package com.plcoding.todoai.agent
 
-import com.plcoding.todoai.agent.domain.ToolArguments
-import com.plcoding.todoai.agent.domain.ToolException
+import ai.koog.agents.core.tools.ToolException
 import com.plcoding.todoai.agent.tools.CreateTodoTool
 import com.plcoding.todoai.agent.tools.GetTodosTool
 import com.plcoding.todoai.agent.tools.SetTodoDoneTool
@@ -11,6 +10,7 @@ import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFails
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -22,8 +22,6 @@ class TodoToolsTest {
     private val clock = object : Clock {
         override fun now(): Instant = Instant.parse("2026-10-21T12:00:00Z")
     }
-
-    private fun args(vararg pairs: Pair<String, Any>) = ToolArguments(pairs.toMap())
 
     @Suppress("UNCHECKED_CAST")
     private fun Map<String, Any?>.titles(): List<String> {
@@ -43,7 +41,7 @@ class TodoToolsTest {
         )
         val tool = GetTodosTool(dataSource, clock, timeZone = { TimeZone.UTC })
 
-        val result = tool.execute(args("period" to "next week"))
+        val result = tool.call("period" to "next week")
 
         assertEquals(listOf("Next Monday", "Next Sunday"), result.titles())
         assertEquals("Monday, October 26, 2026", result["from"])
@@ -61,7 +59,7 @@ class TodoToolsTest {
         )
         val tool = GetTodosTool(dataSource, clock, timeZone = { TimeZone.UTC })
 
-        val result = tool.execute(args("period" to "overdue", "include_done" to true))
+        val result = tool.call("period" to "overdue", "include_done" to true)
 
         assertEquals(listOf("Late"), result.titles())
         assertNull(result["from"])
@@ -71,7 +69,7 @@ class TodoToolsTest {
     fun getTodosRejectsUnknownPeriod() = runTest {
         val tool = GetTodosTool(FakeTodoLocalDataSource(), clock, timeZone = { TimeZone.UTC })
 
-        assertFailsWith<ToolException> { tool.execute(args("period" to "whenever")) }
+        assertFailsWith<ToolException> { tool.call("period" to "whenever") }
     }
 
     @Test
@@ -79,7 +77,7 @@ class TodoToolsTest {
         val dataSource = FakeTodoLocalDataSource()
 
         val result = CreateTodoTool(dataSource, clock, timeZone = { TimeZone.UTC })
-            .execute(args("title" to "Call mom", "due" to "friday"))
+            .call("title" to "Call mom", "due" to "friday")
 
         assertEquals(LocalDate(2026, 10, 23), dataSource.todos.value.single().dueDate)
         val created = result.getValue("created") as Map<*, *>
@@ -90,14 +88,16 @@ class TodoToolsTest {
     fun createTodoTreatsNullStringAsMissingDueDate() = runTest {
         val dataSource = FakeTodoLocalDataSource()
 
-        CreateTodoTool(dataSource, clock).execute(args("title" to "Buy milk", "due" to "null"))
+        CreateTodoTool(dataSource, clock).call("title" to "Buy milk", "due" to "null")
 
         assertNull(dataSource.todos.value.single().dueDate)
     }
 
     @Test
     fun createTodoWithoutTitleFails() = runTest {
-        assertFailsWith<ToolException> { CreateTodoTool(FakeTodoLocalDataSource(), clock).execute(args()) }
+        // A missing required argument fails decoding, which Koog reports back to the model.
+        assertFails { CreateTodoTool(FakeTodoLocalDataSource(), clock).call() }
+        assertFailsWith<ToolException> { CreateTodoTool(FakeTodoLocalDataSource(), clock).call("title" to " null ") }
     }
 
     @Test
@@ -105,7 +105,7 @@ class TodoToolsTest {
         val dataSource = FakeTodoLocalDataSource()
 
         val error = assertFailsWith<ToolException> {
-            CreateTodoTool(dataSource, clock).execute(args("title" to "Buy milk", "due" to "sometime soon"))
+            CreateTodoTool(dataSource, clock).call("title" to "Buy milk", "due" to "sometime soon")
         }
 
         val message = error.message.orEmpty()
@@ -119,7 +119,7 @@ class TodoToolsTest {
             listOf(todo("1", "Buy milk"), todo("2", "Buy milk and eggs"))
         )
 
-        SetTodoDoneTool(dataSource).execute(args("title" to "buy milk"))
+        SetTodoDoneTool(dataSource).call("title" to "buy milk")
 
         assertEquals(listOf(true, false), dataSource.todos.value.sortedBy { it.id }.map { it.isDone })
     }
@@ -131,7 +131,7 @@ class TodoToolsTest {
         )
 
         val error = assertFailsWith<ToolException> {
-            SetTodoDoneTool(dataSource).execute(args("title" to "call"))
+            SetTodoDoneTool(dataSource).call("title" to "call")
         }
 
         val message = error.message.orEmpty()
@@ -143,7 +143,7 @@ class TodoToolsTest {
     fun setDoneAcceptsStringBoolean() = runTest {
         val dataSource = FakeTodoLocalDataSource(listOf(todo("1", "Call mom", isDone = true)))
 
-        SetTodoDoneTool(dataSource).execute(args("title" to "Call mom", "done" to "false"))
+        SetTodoDoneTool(dataSource).call("title" to "Call mom", "done" to "false")
 
         assertEquals(false, dataSource.todos.value.single().isDone)
     }
@@ -154,7 +154,7 @@ class TodoToolsTest {
             listOf(todo("1", "Call mom", dueDate = LocalDate(2026, 10, 30)))
         )
 
-        SetTodoDueDateTool(dataSource).execute(args("title" to "Call mom", "due" to ""))
+        SetTodoDueDateTool(dataSource).call("title" to "Call mom", "due" to "")
 
         assertNull(dataSource.todos.value.single().dueDate)
     }
@@ -164,7 +164,7 @@ class TodoToolsTest {
         val dataSource = FakeTodoLocalDataSource(listOf(todo("1", "Call mom")))
 
         SetTodoDueDateTool(dataSource, clock, timeZone = { TimeZone.UTC })
-            .execute(args("title" to "Call mom", "due" to "in 3 weeks"))
+            .call("title" to "Call mom", "due" to "in 3 weeks")
 
         assertEquals(LocalDate(2026, 11, 11), dataSource.todos.value.single().dueDate)
     }
