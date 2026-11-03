@@ -28,12 +28,12 @@ object LiteRtLmProvider : LLMProvider(id = "litert-lm", display = "LiteRT-LM")
  * Koog [LLMClient] for the on-device model, on top of the platform [LlmEngine].
  *
  * Koog sends the whole prompt on every call, while a LiteRT-LM conversation keeps its own history
- * and runs the model on every message it gets. So the client keeps one native conversation and
- * only sends the message that is new since the last call. A different system prompt or tool set
- * starts a new conversation.
+ * and runs the model on every message it gets. Everything but the last message is already in the
+ * native conversation, so only that one is sent. A different system prompt (a new day) or tool
+ * set starts a new conversation.
  *
- * Koog's own `prompt-executor-litert-client` does the same on Android, but it has no iOS
- * implementation, and it doesn't fall back from GPU to CPU or let the app pick the model file.
+ * Koog's own `prompt-executor-litert-client` is Android-only (its iOS artifact is a stub), and
+ * doesn't fall back from GPU to CPU or let the app pick the model file.
  */
 class LiteRtLmClient(
     private val engine: LlmEngine,
@@ -44,21 +44,11 @@ class LiteRtLmClient(
     private var conversation: LlmConversation? = null
     private var conversationKey: ConversationKey? = null
 
-    // Non-system messages the native conversation already holds, including its own answers.
-    private var sentMessages: List<Message> = emptyList()
-
     override suspend fun execute(prompt: Prompt, model: LLModel, tools: List<ToolDescriptor>): Message.Assistant =
         mutex.withLock {
             val systemPrompt = prompt.messages.filterIsInstance<Message.System>().joinToString("\n") { it.textContent() }
-            val messages = prompt.messages.filterNot { it is Message.System }
-            require(messages.isNotEmpty()) { "The prompt has no message to send" }
-
             val key = ConversationKey(systemPrompt, tools.map { it.toFunctionDeclaration() })
-            // If the prompt doesn't continue the native history (it was edited or reset), the
-            // earlier messages can't be replayed without running the model on each of them, so a
-            // new conversation starts from the last message.
-            val canReuse = conversationKey == key && sentMessages == messages.dropLast(1)
-            val active = conversation?.takeIf { canReuse } ?: run {
+            val active = conversation?.takeIf { conversationKey == key } ?: run {
                 closeConversation()
                 engine.createConversation(systemPrompt, key.tools).also {
                     conversation = it
@@ -67,9 +57,7 @@ class LiteRtLmClient(
             }
 
             try {
-                val response = active.send(messages.last().toLlmMessage()).toAssistantMessage()
-                sentMessages = messages + response
-                response
+                active.send(prompt.messages.last().toLlmMessage()).toAssistantMessage()
             } catch (e: Throwable) {
                 // A failed or cancelled turn can leave the native conversation in a broken state.
                 closeConversation()
@@ -96,7 +84,6 @@ class LiteRtLmClient(
         conversation?.close()
         conversation = null
         conversationKey = null
-        sentMessages = emptyList()
     }
 
     private fun Message.toLlmMessage(): LlmMessage {

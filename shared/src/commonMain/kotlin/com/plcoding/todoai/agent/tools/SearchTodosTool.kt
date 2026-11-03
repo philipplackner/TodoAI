@@ -28,12 +28,12 @@ class SearchTodosTool(
         val query: String,
         @SerialName("include_done")
         @property:LLMDescription("Whether to include to-dos that are already done. Defaults to true.")
-        val includeDone: Boolean? = null
+        val includeDone: Boolean = true
     )
 
     override suspend fun execute(args: Args): JsonObject {
         val query = args.query.argOrNull() ?: fail("The query is missing.")
-        val includeDone = args.includeDone ?: true
+        val includeDone = args.includeDone
 
         val todos = search(query).filter { includeDone || !it.isDone }
 

@@ -30,12 +30,12 @@ class CreateTodoTool(
         @property:LLMDescription("Short title of the to-do.")
         val title: String,
         @property:LLMDescription("Optional extra details.")
-        val description: String? = null,
+        val description: String = "",
         @property:LLMDescription(
             "When it's due, copied from the user's words without converting it, " +
                 "for example ${DateExpressions.DATE_EXAMPLES}. Leave it out if the user gave no date."
         )
-        val due: String? = null
+        val due: String = ""
     )
 
     override suspend fun execute(args: Args): JsonObject {

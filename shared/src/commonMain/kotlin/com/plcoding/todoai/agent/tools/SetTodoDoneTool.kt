@@ -23,12 +23,12 @@ class SetTodoDoneTool(
         @property:LLMDescription("Title of the to-do, or a unique part of it.")
         val title: String,
         @property:LLMDescription("True to mark it as done, false to mark it as not done. Defaults to true.")
-        val done: Boolean? = null
+        val done: Boolean = true
     )
 
     override suspend fun execute(args: Args): JsonObject {
         val title = args.title.argOrNull() ?: fail("The title is missing.")
-        val isDone = args.done ?: true
+        val isDone = args.done
 
         val match = todoDataSource.matchTodoByTitle(title)
         if (match !is TodoMatch.Found) {

@@ -31,7 +31,7 @@ class SetTodoDueDateTool(
             "The new due date, copied from the user's words without converting it, " +
                 "for example ${DateExpressions.DATE_EXAMPLES}. Leave it out to remove the due date."
         )
-        val due: String? = null
+        val due: String = ""
     )
 
     override suspend fun execute(args: Args): JsonObject {

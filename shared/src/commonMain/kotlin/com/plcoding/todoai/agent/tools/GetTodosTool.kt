@@ -34,7 +34,7 @@ class GetTodosTool(
         val period: String,
         @SerialName("include_done")
         @property:LLMDescription("Whether to include to-dos that are already done. Defaults to false.")
-        val includeDone: Boolean? = null
+        val includeDone: Boolean = false
     )
 
     override suspend fun execute(args: Args): JsonObject {
@@ -44,7 +44,7 @@ class GetTodosTool(
             ?: fail(
                 "Couldn't understand the period '$periodText'. Pass the user's wording, for example ${DateExpressions.PERIOD_EXAMPLES}."
             )
-        val includeDone = args.includeDone ?: false
+        val includeDone = args.includeDone
 
         val todos = when (filter) {
             DueFilter.Overdue -> todoDataSource.getTodosDueBefore(today).filter { !it.isDone }
