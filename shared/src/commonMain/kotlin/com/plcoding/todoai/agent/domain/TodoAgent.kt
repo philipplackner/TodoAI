@@ -1,8 +1,23 @@
 package com.plcoding.todoai.agent.domain
 
-import kotlinx.coroutines.CancellationException
+import ai.koog.agents.core.agent.AIAgent
+import ai.koog.agents.core.agent.config.AIAgentConfig
+import ai.koog.agents.core.agent.config.MissingToolsConversionStrategy
+import ai.koog.agents.core.agent.config.ToolCallDescriber
+import ai.koog.agents.core.agent.functionalStrategy
+import ai.koog.agents.core.tools.ToolBase
+import ai.koog.agents.core.tools.ToolDescriptor
+import ai.koog.agents.core.tools.ToolRegistry
+import ai.koog.prompt.Prompt
+import ai.koog.prompt.dsl.prompt
+import ai.koog.prompt.executor.llms.MultiLLMPromptExecutor
+import ai.koog.prompt.message.MessagePart
+import ai.koog.serialization.kotlinx.KotlinxSerializer
+import com.plcoding.todoai.agent.data.LiteRtLmClient
+import com.plcoding.todoai.agent.data.toPlainMap
+import com.plcoding.todoai.agent.data.toolArgumentsJson
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.LocalDate
@@ -11,85 +26,57 @@ import kotlinx.datetime.todayIn
 import kotlin.time.Clock
 
 /**
- * Runs the agent loop: send the user's prompt, execute every tool call the model asks for, feed
- * the results back, and repeat until the model answers with plain text.
+ * Runs the to-do agent with Koog: send the user's prompt, execute every tool call the model asks
+ * for, feed the results back, and repeat until the model answers with plain text.
+ *
+ * Each [send] runs a new Koog agent for one turn. The history lives in the native LiteRT-LM
+ * conversation (see [LiteRtLmClient]), so follow-up questions keep their context.
  */
 class TodoAgent(
-    private val engine: LlmEngine,
-    tools: List<AgentTool>,
+    private val client: LiteRtLmClient,
+    tools: List<ToolBase<*, *>>,
     private val clock: Clock = Clock.System,
     private val timeZone: () -> TimeZone = { TimeZone.currentSystemDefault() }
 ) {
-    private val toolsByName = tools.associateBy { it.name }
+    private val executor = MultiLLMPromptExecutor(client)
+    private val toolRegistry = ToolRegistry { tools(tools) }
     private val mutex = Mutex()
 
-    private var conversation: LlmConversation? = null
-    private var conversationDate: LocalDate? = null
-
-    fun send(prompt: String): Flow<AgentEvent> = flow {
+    fun send(prompt: String): Flow<AgentEvent> = channelFlow {
         mutex.withLock {
-            val conversation = currentConversation()
-            try {
-                var response = conversation.send(LlmMessage.User(prompt))
-                var round = 0
-                while (response.toolCalls.isNotEmpty() && round < MAX_TOOL_ROUNDS) {
-                    round++
-                    val results = response.toolCalls.map { call ->
-                        emit(AgentEvent.ToolCalled(call))
-                        ToolResult(toolName = call.name, result = execute(call))
+            val agent = AIAgent(
+                promptExecutor = executor,
+                agentConfig = AIAgentConfig(
+                    // The date is part of the system prompt, so on a new day the client starts a
+                    // new conversation and "tomorrow" resolves to the right day.
+                    prompt = prompt("todo-agent") { system(buildSystemPrompt(clock.todayIn(timeZone()))) },
+                    model = LiteRtLmClient.model,
+                    maxAgentIterations = MAX_AGENT_ITERATIONS,
+                    missingToolsConversionStrategy = KeepToolCalls,
+                    serializer = KotlinxSerializer(toolArgumentsJson)
+                ),
+                strategy = functionalStrategy<String, String>("todo-agent") { input ->
+                    var response = requestLLM(input)
+                    var round = 0
+                    while (getToolCalls(response).isNotEmpty() && round < MAX_TOOL_ROUNDS) {
+                        round++
+                        val calls = getToolCalls(response)
+                        calls.forEach { send(AgentEvent.ToolCalled(it.toToolCall())) }
+                        response = sendToolResults(executeTools(calls))
                     }
-                    response = conversation.send(LlmMessage.ToolResults(results))
-                }
-                emit(AgentEvent.Answer(response.text.trim()))
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                // A failed turn can leave the native conversation in a broken state.
-                closeConversation()
-                throw e
-            }
+                    response.textContent()
+                },
+                toolRegistry = toolRegistry
+            )
+            send(AgentEvent.Answer(agent.run(prompt).trim()))
         }
     }
 
     suspend fun reset() {
-        mutex.withLock { closeConversation() }
+        mutex.withLock { client.reset() }
     }
 
-    private suspend fun currentConversation(): LlmConversation {
-        val today = clock.todayIn(timeZone())
-        // The date is part of the system prompt, so a conversation from yesterday would resolve
-        // "tomorrow" to the wrong day.
-        if (conversationDate != today) {
-            closeConversation()
-        }
-        return conversation ?: engine.createConversation(
-            systemPrompt = buildSystemPrompt(today),
-            tools = toolsByName.values.toList()
-        ).also {
-            conversation = it
-            conversationDate = today
-        }
-    }
-
-    private suspend fun execute(call: ToolCall): Map<String, Any?> {
-        val tool = toolsByName[call.name]
-            ?: return errorResult("Unknown tool '${call.name}'. Available tools: ${toolsByName.keys.joinToString()}.")
-        return try {
-            tool.execute(call.arguments)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            errorResult(e.message ?: "The tool failed.")
-        }
-    }
-
-    private fun errorResult(message: String): Map<String, Any?> = mapOf("error" to message)
-
-    private fun closeConversation() {
-        conversation?.close()
-        conversation = null
-        conversationDate = null
-    }
+    private fun MessagePart.Tool.Call.toToolCall() = ToolCall(name = tool, arguments = ToolArguments(argsJson.toPlainMap()))
 
     private fun buildSystemPrompt(today: LocalDate): String = """
         You are a helpful assistant inside a to-do app. You can read and change the user's to-dos only through the provided tools.
@@ -109,5 +96,17 @@ class TodoAgent(
 
     private companion object {
         const val MAX_TOOL_ROUNDS = 5
+
+        /**
+         * By default Koog rewrites calls to tools that aren't registered (a model inventing a tool
+         * name) as text. The LiteRT-LM conversation already holds the call, so the prompt has to
+         * stay as it is, and the "unknown tool" error goes back as a normal tool result.
+         */
+        val KeepToolCalls = object : MissingToolsConversionStrategy(ToolCallDescriber.JSON) {
+            override fun convertPrompt(prompt: Prompt, tools: List<ToolDescriptor>): Prompt = prompt
+        }
+
+        // Each LLM request and tool run is a step; five tool rounds need well under this.
+        const val MAX_AGENT_ITERATIONS = 50
     }
 }

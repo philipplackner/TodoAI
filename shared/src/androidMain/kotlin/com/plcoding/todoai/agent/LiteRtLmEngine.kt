@@ -11,8 +11,6 @@ import com.google.ai.edge.litertlm.EngineConfig
 import com.google.ai.edge.litertlm.Message
 import com.google.ai.edge.litertlm.OpenApiTool
 import com.google.ai.edge.litertlm.tool
-import com.plcoding.todoai.agent.data.toFunctionDeclaration
-import com.plcoding.todoai.agent.domain.AgentTool
 import com.plcoding.todoai.agent.domain.LlmConversation
 import com.plcoding.todoai.agent.domain.LlmEngine
 import com.plcoding.todoai.agent.domain.LlmMessage
@@ -23,6 +21,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonObject
 
 class LiteRtLmEngine : LlmEngine {
 
@@ -47,7 +46,7 @@ class LiteRtLmEngine : LlmEngine {
 
     override suspend fun createConversation(
         systemPrompt: String,
-        tools: List<AgentTool>
+        tools: List<JsonObject>
     ): LlmConversation {
         val engine = checkNotNull(engine) { "The model is not loaded" }
         val conversation = withContext(Dispatchers.Default) {
@@ -116,13 +115,12 @@ private class LiteRtLmConversation(
 
 /**
  * Only describes the tool to the model. With `automaticToolCalling = false`, LiteRT-LM returns
- * tool calls to us instead of calling [execute], and [com.plcoding.todoai.agent.domain.TodoAgent]
- * runs them.
+ * tool calls to us instead of calling [execute], and Koog's agent runs them.
  */
-private class DescriptionOnlyTool(private val tool: AgentTool) : OpenApiTool {
-    override fun getToolDescriptionJsonString(): String = tool.toFunctionDeclaration().toString()
+private class DescriptionOnlyTool(private val declaration: JsonObject) : OpenApiTool {
+    override fun getToolDescriptionJsonString(): String = declaration.toString()
 
     override fun execute(paramsJsonString: String): String {
-        error("Tool '${tool.name}' is executed by TodoAgent, not by LiteRT-LM")
+        error("Tool '${declaration["name"]}' is executed by the Koog agent, not by LiteRT-LM")
     }
 }

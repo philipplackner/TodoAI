@@ -1,48 +1,40 @@
 package com.plcoding.todoai.agent.data
 
-import com.plcoding.todoai.agent.domain.AgentTool
-import com.plcoding.todoai.agent.domain.ToolParameter
+import ai.koog.agents.core.tools.ToolDescriptor
+import ai.koog.prompt.executor.clients.openai.base.OpenAICompatibleToolDescriptorSchemaGenerator
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.add
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
-import kotlinx.serialization.json.putJsonArray
-import kotlinx.serialization.json.putJsonObject
 
 /**
- * Describes the tool as a function declaration whose `parameters` are a JSON schema of type
- * `object`, the format LiteRT-LM expects.
+ * Small models add arguments that aren't in the schema, send `"true"` as a string or `null` for an
+ * optional argument, so the agent decodes tool arguments leniently.
  */
-fun AgentTool.toFunctionDeclaration(): JsonObject = buildJsonObject {
-    put("name", name)
-    put("description", description)
-    putJsonObject("parameters") {
-        put("type", "object")
-        putJsonObject("properties") {
-            parameters.forEach { parameter ->
-                putJsonObject(parameter.name) {
-                    put("type", parameter.type.toSchemaType())
-                    put("description", parameter.description)
-                }
-            }
-        }
-        val required = parameters.filter { it.isRequired }
-        if (required.isNotEmpty()) {
-            putJsonArray("required") { required.forEach { add(it.name) } }
-        }
-    }
+val toolArgumentsJson = Json {
+    ignoreUnknownKeys = true
+    isLenient = true
+    coerceInputValues = true
 }
 
-private fun ToolParameter.Type.toSchemaType(): String = when (this) {
-    ToolParameter.Type.STRING -> "string"
-    ToolParameter.Type.BOOLEAN -> "boolean"
+private val schemaGenerator = OpenAICompatibleToolDescriptorSchemaGenerator()
+
+/**
+ * Describes a Koog tool as a function declaration, the format LiteRT-LM expects. Optional tool
+ * arguments have defaults instead of being nullable, so the schema has plain types rather than
+ * "string or null", which small models handle better.
+ */
+fun ToolDescriptor.toFunctionDeclaration(): JsonObject = buildJsonObject {
+    put("name", name)
+    put("description", description)
+    put("parameters", schemaGenerator.generate(this@toFunctionDeclaration))
 }
 
 fun JsonObject.toPlainMap(): Map<String, Any?> = mapValues { it.value.toPlainValue() }

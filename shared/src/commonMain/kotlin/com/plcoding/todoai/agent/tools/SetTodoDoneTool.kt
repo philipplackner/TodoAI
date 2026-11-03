@@ -1,43 +1,41 @@
 package com.plcoding.todoai.agent.tools
 
-import com.plcoding.todoai.agent.domain.AgentTool
-import com.plcoding.todoai.agent.domain.ToolArguments
-import com.plcoding.todoai.agent.domain.ToolException
-import com.plcoding.todoai.agent.domain.ToolParameter
+import ai.koog.agents.core.tools.Tool
+import ai.koog.agents.core.tools.annotations.LLMDescription
+import ai.koog.agents.core.tools.fail
+import ai.koog.serialization.typeToken
+import com.plcoding.todoai.agent.data.toJsonObject
 import com.plcoding.todoai.todo.domain.TodoLocalDataSource
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
 
 class SetTodoDoneTool(
     private val todoDataSource: TodoLocalDataSource
-) : AgentTool {
+) : Tool<SetTodoDoneTool.Args, JsonObject>(
+    argsType = typeToken<Args>(),
+    resultType = typeToken<JsonObject>(),
+    name = "set_todo_done",
+    description = "Marks a to-do as done or as not done."
+) {
 
-    override val name = "set_todo_done"
-
-    override val description = "Marks a to-do as done or as not done."
-
-    override val parameters = listOf(
-        ToolParameter(
-            name = "title",
-            type = ToolParameter.Type.STRING,
-            description = "Title of the to-do, or a unique part of it."
-        ),
-        ToolParameter(
-            name = "done",
-            type = ToolParameter.Type.BOOLEAN,
-            description = "True to mark it as done, false to mark it as not done. Defaults to true.",
-            isRequired = false
-        )
+    @Serializable
+    data class Args(
+        @property:LLMDescription("Title of the to-do, or a unique part of it.")
+        val title: String,
+        @property:LLMDescription("True to mark it as done, false to mark it as not done. Defaults to true.")
+        val done: Boolean = true
     )
 
-    override suspend fun execute(arguments: ToolArguments): Map<String, Any?> {
-        val title = arguments.string("title") ?: throw ToolException("The title is missing.")
-        val isDone = arguments.boolean("done") ?: true
+    override suspend fun execute(args: Args): JsonObject {
+        val title = args.title.argOrNull() ?: fail("The title is missing.")
+        val isDone = args.done
 
         val match = todoDataSource.matchTodoByTitle(title)
         if (match !is TodoMatch.Found) {
-            throw ToolException(match.errorMessage(title))
+            fail(match.errorMessage(title))
         }
         todoDataSource.setDone(id = match.todo.id, isDone = isDone)
 
-        return mapOf("updated" to match.todo.copy(isDone = isDone).toToolMap())
+        return mapOf("updated" to match.todo.copy(isDone = isDone).toToolMap()).toJsonObject()
     }
 }

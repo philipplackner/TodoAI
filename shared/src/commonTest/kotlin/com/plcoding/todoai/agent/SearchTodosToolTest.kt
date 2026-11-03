@@ -1,7 +1,6 @@
 package com.plcoding.todoai.agent
 
-import com.plcoding.todoai.agent.domain.ToolArguments
-import com.plcoding.todoai.agent.domain.ToolException
+import ai.koog.agents.core.tools.ToolException
 import com.plcoding.todoai.agent.tools.SearchTodosTool
 import com.plcoding.todoai.agent.tools.searchKeywords
 import kotlinx.coroutines.test.runTest
@@ -22,12 +21,12 @@ class SearchTodosToolTest {
     private val tool = SearchTodosTool(dataSource)
 
     private suspend fun search(query: String, includeDone: Boolean? = null): List<String> {
-        val arguments = ToolArguments(buildMap {
-            put("query", query)
-            if (includeDone != null) put("include_done", includeDone)
-        })
+        val arguments = buildList {
+            add("query" to query)
+            if (includeDone != null) add("include_done" to includeDone)
+        }
         @Suppress("UNCHECKED_CAST")
-        val todos = tool.execute(arguments).getValue("todos") as List<Map<String, Any?>>
+        val todos = tool.call(*arguments.toTypedArray()).getValue("todos") as List<Map<String, Any?>>
         return todos.map { it.getValue("title") as String }
     }
 
@@ -67,8 +66,8 @@ class SearchTodosToolTest {
     }
 
     @Test
-    fun missingQueryFails() = runTest {
-        assertFailsWith<ToolException> { tool.execute(ToolArguments(emptyMap())) }
+    fun blankQueryFails() = runTest {
+        assertFailsWith<ToolException> { tool.call("query" to "") }
     }
 
     @Test

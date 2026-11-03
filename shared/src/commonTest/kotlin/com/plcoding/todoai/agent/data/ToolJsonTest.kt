@@ -15,7 +15,7 @@ class ToolJsonTest {
 
     @Test
     fun functionDeclarationHasSchemaWithRequiredParameters() {
-        val declaration = CreateTodoTool(FakeTodoLocalDataSource()).toFunctionDeclaration()
+        val declaration = CreateTodoTool(FakeTodoLocalDataSource()).descriptor.toFunctionDeclaration()
 
         assertEquals("create_todo", declaration.getValue("name").jsonPrimitive.content)
         val parameters = declaration.getValue("parameters").jsonObject

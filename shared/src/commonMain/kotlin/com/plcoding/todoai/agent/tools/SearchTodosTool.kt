@@ -1,39 +1,39 @@
 package com.plcoding.todoai.agent.tools
 
-import com.plcoding.todoai.agent.domain.AgentTool
-import com.plcoding.todoai.agent.domain.ToolArguments
-import com.plcoding.todoai.agent.domain.ToolException
-import com.plcoding.todoai.agent.domain.ToolParameter
+import ai.koog.agents.core.tools.Tool
+import ai.koog.agents.core.tools.annotations.LLMDescription
+import ai.koog.agents.core.tools.fail
+import ai.koog.serialization.typeToken
+import com.plcoding.todoai.agent.data.toJsonObject
 import com.plcoding.todoai.todo.domain.Todo
 import com.plcoding.todoai.todo.domain.TodoLocalDataSource
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
 
 class SearchTodosTool(
     private val todoDataSource: TodoLocalDataSource
-) : AgentTool {
-
-    override val name = "search_todos"
-
-    override val description = "Finds to-dos about a topic by searching their titles and descriptions. " +
+) : Tool<SearchTodosTool.Args, JsonObject>(
+    argsType = typeToken<Args>(),
+    resultType = typeToken<JsonObject>(),
+    name = "search_todos",
+    description = "Finds to-dos about a topic by searching their titles and descriptions. " +
         "Use it whenever the user asks about a specific thing, for example " +
         "\"Do I need to record something?\" -> query \"record\", \"Did I buy milk?\" -> query \"milk\"."
+) {
 
-    override val parameters = listOf(
-        ToolParameter(
-            name = "query",
-            type = ToolParameter.Type.STRING,
-            description = "One or a few keywords to search for, like \"record\" or \"dentist\"."
-        ),
-        ToolParameter(
-            name = "include_done",
-            type = ToolParameter.Type.BOOLEAN,
-            description = "Whether to include to-dos that are already done. Defaults to true.",
-            isRequired = false
-        )
+    @Serializable
+    data class Args(
+        @property:LLMDescription("One or a few keywords to search for, like \"record\" or \"dentist\".")
+        val query: String,
+        @SerialName("include_done")
+        @property:LLMDescription("Whether to include to-dos that are already done. Defaults to true.")
+        val includeDone: Boolean = true
     )
 
-    override suspend fun execute(arguments: ToolArguments): Map<String, Any?> {
-        val query = arguments.string("query") ?: throw ToolException("The query is missing.")
-        val includeDone = arguments.boolean("include_done") ?: true
+    override suspend fun execute(args: Args): JsonObject {
+        val query = args.query.argOrNull() ?: fail("The query is missing.")
+        val includeDone = args.includeDone
 
         val todos = search(query).filter { includeDone || !it.isDone }
 
@@ -41,7 +41,7 @@ class SearchTodosTool(
             "query" to query,
             "count" to todos.size,
             "todos" to todos.map { it.toToolMap() }
-        )
+        ).toJsonObject()
     }
 
     /**

@@ -1,5 +1,6 @@
 package com.plcoding.todoai.di
 
+import com.plcoding.todoai.agent.data.LiteRtLmClient
 import com.plcoding.todoai.agent.data.ModelDownloader
 import com.plcoding.todoai.agent.data.ModelManager
 import com.plcoding.todoai.agent.domain.TodoAgent
@@ -43,10 +44,11 @@ val agentModule = module {
             applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         )
     }
+    single { LiteRtLmClient(engine = get()) }
     single {
         val todoDataSource = get<TodoLocalDataSource>()
         TodoAgent(
-            engine = get(),
+            client = get(),
             tools = listOf(
                 GetTodosTool(todoDataSource),
                 SearchTodosTool(todoDataSource),
