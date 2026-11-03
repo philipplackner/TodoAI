@@ -4,7 +4,6 @@ import ai.koog.agents.core.agent.AIAgent
 import ai.koog.agents.core.agent.config.AIAgentConfig
 import ai.koog.agents.core.agent.config.MissingToolsConversionStrategy
 import ai.koog.agents.core.agent.config.ToolCallDescriber
-import ai.koog.agents.core.agent.context.AIAgentFunctionalContext
 import ai.koog.agents.core.agent.functionalStrategy
 import ai.koog.agents.core.tools.ToolBase
 import ai.koog.agents.core.tools.ToolDescriptor
@@ -12,7 +11,6 @@ import ai.koog.agents.core.tools.ToolRegistry
 import ai.koog.prompt.Prompt
 import ai.koog.prompt.dsl.prompt
 import ai.koog.prompt.executor.llms.MultiLLMPromptExecutor
-import ai.koog.prompt.message.Message
 import ai.koog.prompt.message.MessagePart
 import ai.koog.serialization.kotlinx.KotlinxSerializer
 import com.plcoding.todoai.agent.data.LiteRtLmClient
@@ -58,7 +56,15 @@ class TodoAgent(
                     serializer = KotlinxSerializer(toolArgumentsJson)
                 ),
                 strategy = functionalStrategy<String, String>("todo-agent") { input ->
-                    answer(input, onToolCall = { send(AgentEvent.ToolCalled(it)) })
+                    var response = requestLLM(input)
+                    var round = 0
+                    while (getToolCalls(response).isNotEmpty() && round < MAX_TOOL_ROUNDS) {
+                        round++
+                        val calls = getToolCalls(response)
+                        calls.forEach { send(AgentEvent.ToolCalled(it.toToolCall())) }
+                        response = sendToolResults(executeTools(calls))
+                    }
+                    response.textContent()
                 },
                 toolRegistry = toolRegistry
             )
@@ -70,25 +76,7 @@ class TodoAgent(
         mutex.withLock { client.reset() }
     }
 
-    private suspend fun AIAgentFunctionalContext.answer(
-        input: String,
-        onToolCall: suspend (ToolCall) -> Unit
-    ): String {
-        var response = requestLLM(input)
-        var round = 0
-        while (getToolCalls(response).isNotEmpty() && round < MAX_TOOL_ROUNDS) {
-            round++
-            val calls = getToolCalls(response)
-            calls.forEach { onToolCall(it.toToolCall()) }
-            response = sendToolResults(executeTools(calls))
-        }
-        return response.textContent(separator = "")
-    }
-
     private fun MessagePart.Tool.Call.toToolCall() = ToolCall(name = tool, arguments = ToolArguments(argsJson.toPlainMap()))
-
-    private fun Message.Assistant.textContent(separator: String): String =
-        parts.filterIsInstance<MessagePart.Text>().joinToString(separator) { it.text }
 
     private fun buildSystemPrompt(today: LocalDate): String = """
         You are a helpful assistant inside a to-do app. You can read and change the user's to-dos only through the provided tools.
