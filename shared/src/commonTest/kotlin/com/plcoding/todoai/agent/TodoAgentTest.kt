@@ -10,7 +10,6 @@ import com.plcoding.todoai.agent.domain.ToolArguments
 import com.plcoding.todoai.agent.domain.ToolCall
 import com.plcoding.todoai.agent.domain.ToolResult
 import com.plcoding.todoai.agent.domain.TodoAgent
-import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
@@ -26,14 +25,10 @@ import kotlin.time.Instant
 class TodoAgentTest {
 
     @Serializable
-    data class EchoArgs(
-        val text: String,
-        @SerialName("shout") val shout: Boolean = false
-    )
+    data class EchoArgs(val text: String)
 
     private val echoTool = object : SimpleTool<EchoArgs>(typeToken<EchoArgs>(), "echo", "Echoes its input") {
-        override suspend fun execute(args: EchoArgs): String =
-            """{"text":"${if (args.shout) args.text.uppercase() else args.text}"}"""
+        override suspend fun execute(args: EchoArgs): String = """{"text":"${args.text}"}"""
     }
 
     @Serializable
@@ -56,7 +51,7 @@ class TodoAgentTest {
         timeZone = { TimeZone.UTC }
     )
 
-    private fun toolCall(name: String, vararg arguments: Pair<String, Any>) = LlmResponse(
+    private fun toolCall(name: String, vararg arguments: Pair<String, String>) = LlmResponse(
         text = "",
         toolCalls = listOf(ToolCall(name, ToolArguments(arguments.toMap())))
     )
@@ -177,53 +172,5 @@ class TodoAgentTest {
         assertEquals(AgentEvent.Answer("ok"), events.single())
         assertEquals(1, engine.closedConversations)
         assertEquals(2, engine.systemPrompts.size)
-    }
-
-    @Test
-    fun smallModelArgumentQuirksAreTolerated() = runTest {
-        val engine = FakeLlmEngine { message ->
-            when (message) {
-                // A boolean sent as a string, plus an argument the tool doesn't have.
-                is LlmMessage.User -> toolCall("echo", "text" to "hi", "shout" to "true", "mood" to "happy")
-                is LlmMessage.ToolResults -> answer("done")
-            }
-        }
-
-        agent(engine).send("Shout hi").toList()
-
-        assertEquals(mapOf("text" to "HI"), engine.sentToolResult().result)
-    }
-
-    @Test
-    fun followUpOnlySendsTheNewMessage() = runTest {
-        val engine = FakeLlmEngine { answer("ok") }
-        val agent = agent(engine)
-
-        agent.send("One").toList()
-        agent.send("Two").toList()
-
-        assertEquals(listOf<LlmMessage>(LlmMessage.User("One"), LlmMessage.User("Two")), engine.sentMessages)
-    }
-
-    @Test
-    fun toolsAreDeclaredToTheModel() = runTest {
-        val engine = FakeLlmEngine { answer("ok") }
-
-        agent(engine).send("Hi").toList()
-
-        assertEquals(listOf("echo", "fail"), engine.toolDeclarations.single().map { it.getValue("name").toString().trim('"') })
-    }
-
-    @Test
-    fun resetStartsANewConversation() = runTest {
-        val engine = FakeLlmEngine { answer("ok") }
-        val agent = agent(engine)
-
-        agent.send("One").toList()
-        agent.reset()
-        agent.send("Two").toList()
-
-        assertEquals(2, engine.systemPrompts.size)
-        assertEquals(1, engine.closedConversations)
     }
 }

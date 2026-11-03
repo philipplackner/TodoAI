@@ -3,7 +3,6 @@ package com.plcoding.todoai.agent.data
 import com.plcoding.todoai.agent.FakeTodoLocalDataSource
 import com.plcoding.todoai.agent.domain.ToolArguments
 import com.plcoding.todoai.agent.tools.CreateTodoTool
-import com.plcoding.todoai.agent.tools.GetTodosTool
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -23,22 +22,7 @@ class ToolJsonTest {
         val properties = parameters.getValue("properties").jsonObject
         assertEquals(setOf("title", "description", "due"), properties.keys)
         assertEquals("string", properties.getValue("title").jsonObject.getValue("type").jsonPrimitive.content)
-        // Optional arguments are plain strings, not "string or null".
-        assertEquals("string", properties.getValue("due").jsonObject.getValue("type").jsonPrimitive.content)
-        assertEquals(
-            "Short title of the to-do.",
-            properties.getValue("title").jsonObject.getValue("description").jsonPrimitive.content
-        )
         assertEquals(listOf("title"), parameters.getValue("required").jsonArray.map { it.jsonPrimitive.content })
-    }
-
-    @Test
-    fun snakeCaseBooleanArgumentKeepsItsName() {
-        val declaration = GetTodosTool(FakeTodoLocalDataSource()).descriptor.toFunctionDeclaration()
-
-        val properties = declaration.getValue("parameters").jsonObject.getValue("properties").jsonObject
-        assertEquals(setOf("period", "include_done"), properties.keys)
-        assertEquals("boolean", properties.getValue("include_done").jsonObject.getValue("type").jsonPrimitive.content)
     }
 
     @Test

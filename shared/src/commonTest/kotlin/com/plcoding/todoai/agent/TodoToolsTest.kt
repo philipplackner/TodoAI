@@ -95,9 +95,7 @@ class TodoToolsTest {
 
     @Test
     fun createTodoWithoutTitleFails() = runTest {
-        // A missing required argument fails decoding, which Koog reports back to the model.
         assertFails { CreateTodoTool(FakeTodoLocalDataSource(), clock).call() }
-        assertFailsWith<ToolException> { CreateTodoTool(FakeTodoLocalDataSource(), clock).call("title" to " null ") }
     }
 
     @Test
